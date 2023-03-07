@@ -6,9 +6,9 @@ import torch.nn.functional as F
 import torch_geometric.nn as nng
 
 from .node_layer import NodeLayer
-from .graph_layer import GraphLayer
+from .graph_layer_extras import GraphLayerExtras
 
-class AttentiveFP(nng.MessagePassing):
+class AttentiveFPExtras(nng.MessagePassing):
 
     def __init__(
         self,
@@ -21,7 +21,7 @@ class AttentiveFP(nng.MessagePassing):
         p_dropout: float=0.2
         ) -> None:
 
-        super(AttentiveFP, self).__init__()
+        super(AttentiveFPExtras, self).__init__()
 
         self.embedding_dim = embedding_dim
         self.node_attribute_dim = node_attribute_dim
@@ -44,7 +44,7 @@ class AttentiveFP(nng.MessagePassing):
          ])
         
         self.graph_layers = nn.ModuleList([
-            GraphLayer(
+            GraphLayerExtras(
                 dim=embedding_dim,
                 p_dropout=p_dropout)
             for _ in range(n_graph_layers)
@@ -62,6 +62,8 @@ class AttentiveFP(nng.MessagePassing):
     def forward(
         self,
         x: torch.tensor, 
+        x2: torch.tensor,
+        x2_dim0: torch.tensor,
         edge_index: torch.tensor,
         edge_attr: Optional[torch.tensor]=None,
         batch_index: Optional[torch.tensor]=None,
@@ -74,9 +76,9 @@ class AttentiveFP(nng.MessagePassing):
             x = mod(x, edge_index)
 
         # Loop through graph layers
-        graph_embedding = self.graph_layers[0](x, batch_index)
+        graph_embedding = self.graph_layers[0](x, x2, x2_dim0, batch_index)
         for mod in self.graph_layers[1:]:
-            graph_embedding = mod(x, batch_index, graph_embedding)
+            graph_embedding = mod(x, x2, x2_dim0, batch_index, graph_embedding)
 
         # Linear layers
         for mod in self.linear_layers[:-1]:
