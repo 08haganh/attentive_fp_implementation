@@ -19,7 +19,7 @@ class NodeLayer(nng.MessagePassing):
     
     def __init__(
         self,
-        node_attribute_dim: int,
+        dim: int,
         edge_attribute_dim: Optional[int]=None,
         embedding_dim: Optional[int]=None,
         p_dropout: float=0
@@ -27,21 +27,21 @@ class NodeLayer(nng.MessagePassing):
         
         super(NodeLayer, self).__init__()
 
-        self.node_attribute_dim = node_attribute_dim
+        self.dim = dim
         self.edge_attribute_dim = edge_attribute_dim
         self.embedding_dim = embedding_dim
         self.p_dropout = p_dropout
 
         if self.embedding_dim is not None:
             self.embed = True
-            self.embed_atom_layer = nn.Linear(self.node_attribute_dim, self.embedding_dim)
-            self.embed_neighbour_layer = \
-                nn.Linear(self.node_attribute_dim + self.edge_attribute_dim, self.embedding_dim) \
+            self.node_embedding_layer = nn.Linear(self.dim, self.embedding_dim)
+            self.neighbour_embedding_layer = \
+                nn.Linear(self.dim + self.edge_attribute_dim, self.embedding_dim) \
                 if self.edge_attribute_dim is not None \
-                else nn.Linear(self.node_attribute_dim, self.embedding_dim)
+                else nn.Linear(self.dim, self.embedding_dim)
         else:
             self.embed = False
-            self.embedding_dim = self.node_attribute_dim
+            self.embedding_dim = self.dim
         
         self.alignment_layer = nn.Linear(2*self.embedding_dim, 1)
         self.context_layer = nn.Linear(self.embedding_dim, self.embedding_dim)
@@ -57,7 +57,16 @@ class NodeLayer(nng.MessagePassing):
         '''
         forward pass through the node layer.
 
-        returns updated node embeddings for the graph 
+        returns updated node embeddings for the graph
+
+        Also sets attentions, node_embeddings, and atom_batch_index attributes
+
+        Args:
+
+            x (torch.tensor): node feature matrix (n_nodes by n_node_features)
+            edge_index (toch.tensor): adjacency matrix in COO format (2 by n_bonds) where [0, i] are source nodes
+                                      and [1, i] are target nodes for the ith bond
+            edge_attr (torch.tensor): edge feature matrix (n_bonds by n_bond_features)
         '''
 
         # Perform Embedding
@@ -89,8 +98,6 @@ class NodeLayer(nng.MessagePassing):
         self.batch_index = atom_batch_index
 
         return readout
-
-        
 
     def embed_neighbours(
         self,
@@ -137,7 +144,7 @@ class NodeLayer(nng.MessagePassing):
         bond_attributes = expanded_edge_attr[bond_masks]
 
         return (
-            F.leaky_relu(self.embed_neighbours(torch.concat([neighbour_attributes, bond_attributes], axis=1))),
+            F.leaky_relu(self.neighbour_embedding_layer(torch.concat([neighbour_attributes, bond_attributes], axis=1))),
             atom_batch_index,
             neighbour_counts
             )
@@ -147,6 +154,10 @@ class NodeLayer(nng.MessagePassing):
         x: torch.tensor,
         edge_index: torch.tensor,
         ) -> Tuple[torch.tensor, torch.tensor, List[int]]: 
+
+        '''
+        retrieves the current embedding for atoms neighbours
+        '''
 
         # graph of batch for easy access to node neighbours
         batch_graph = to_networkx(

@@ -7,10 +7,12 @@ import torch_geometric.nn as nng
 
 from torch_geometric.utils import softmax
 
-class GraphLayer(nng.MessagePassing):
+class GraphLayerExtras(nng.MessagePassing):
 
     '''
     torch_geometric module which updates a graph embeddings with node information + attention
+    allows the user to pass graph level descriptors followed with a second x2_dim0 to incorporate 
+    them into the neural network
     '''
 
     def __init__(
@@ -19,7 +21,7 @@ class GraphLayer(nng.MessagePassing):
         p_dropout: float=0.2
         ) -> None:
 
-        super(GraphLayer, self).__init__()
+        super(GraphLayerExtras, self).__init__()
         
         self.dim = dim
         self.p_dropout = p_dropout
@@ -31,13 +33,23 @@ class GraphLayer(nng.MessagePassing):
 
     def forward(
         self,
-        x: torch.tensor,
+        x1: torch.tensor,
+        x2: torch.tensor,
+        x2_dim0: Optional[torch.tensor]=None,
         batch_index: Optional[torch.tensor]=None,
         graph_nodes: Optional[torch.tensor]=None,
         ) -> torch.tensor:
 
         if batch_index is None:
-            batch_index = torch.zeros(size=(x.shape[0]))
+            batch_index = torch.zeros(size=(x1.shape[0]))
+            x2_batch_index, _ = torch.sort(torch.arange(0, len(torch.unique(batch_index)), dtype=int).repeat(x2_dim0))
+            batch_index, sort_index = torch.sort(torch.concatenate([batch_index, x2_batch_index], axis=0))
+            x = torch.concatenate([x, x2], axis=0)[sort_index]
+
+        else:
+            x2_batch_index, _ = torch.sort(torch.arange(0, len(torch.unique(batch_index)), dtype=int).repeat(x2_dim0))
+            batch_index, sort_index = torch.sort(torch.concatenate([batch_index, x2_batch_index], axis=0))
+            x = torch.concatenate([x, x2], axis=0)[sort_index]
 
         if graph_nodes is None:
             graph_nodes = nng.global_add_pool(x, batch_index)
