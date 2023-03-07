@@ -93,6 +93,7 @@ class NodeLayer(nng.MessagePassing):
             )
         readout = F.relu(self.readout_layer(contexts, nodes))
 
+        self.expanded = expanded
         self.attentions = attentions
         self.node_embeddings = readout
         self.batch_index = atom_batch_index

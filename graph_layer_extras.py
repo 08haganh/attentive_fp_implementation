@@ -35,7 +35,7 @@ class GraphLayerExtras(nng.MessagePassing):
         self,
         x1: torch.tensor,
         x2: torch.tensor,
-        x2_dim0: Optional[torch.tensor]=None,
+        x2_dim0: int=1,
         batch_index: Optional[torch.tensor]=None,
         graph_nodes: Optional[torch.tensor]=None,
         ) -> torch.tensor:
