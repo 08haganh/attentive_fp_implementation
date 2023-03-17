@@ -15,7 +15,25 @@ class NodeLayer(nng.MessagePassing):
     '''
     torch_geometric module which updates node embeddings as detailed in X
 
-    
+    Args:
+
+        node_attribute_dim (int): the expected dimension of the node attributes
+        edge_attribute_dim (Optional[int]=None): the expected dimension of the edge_attributes. If None, no edge_attributes expected
+        embedding_dim (Optional[int]=None): the size of the embedding dimension. If int is passed, the node and node neighbours are
+            embedded to this dimension. If None, then node and neighbour features are used as passed
+        p_dropout (float=0.2): dropout fraction 
+
+    Methods:
+
+        forward: single forward pass through the layer. returns updated node embeddings
+
+        get_neighbour_node_attributes: returns node neighbour attributes ordered by node index
+            [neighbour_i_j for i in nodes for j in node.neighbours.node_attributes]
+
+        get_neighbour_edge_attributes: returns the edge_attributes for the nodes of the same dimension and order as 
+            get_neighbour_node_attributes
+
+        get_neighour_all_attributes: returns concat(get_neighbour_node_attributes, get_neighbour_edge_attributes)
     '''
     
     def __init__(
@@ -76,7 +94,10 @@ class NodeLayer(nng.MessagePassing):
         # Perform Embedding
         if self.embed:
             nodes = F.leaky_relu(self.node_embedding_layer(x))
-            neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_all_attributes(x, edge_index, edge_attr)
+            if self.edge_attribute_dim is None:
+                neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_node_attributes(x, edge_index)
+            else:
+                neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_all_attributes(x, edge_index, edge_attr)
             neighbours = F.leaky_relu(self.neighbour_embedding_layer(neighbours))
             
         else:
