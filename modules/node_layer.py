@@ -14,9 +14,6 @@ class NodeLayer(nng.MessagePassing):
 
     '''
     torch_geometric module which updates node embeddings as detailed in X
-
-    The node layer 
-
     '''
     
     def __init__(
@@ -48,7 +45,9 @@ class NodeLayer(nng.MessagePassing):
         
         self.alignment_layer = nn.Linear(2*self.dim, 1)
         self.context_layer = nn.Linear(self.dim, self.dim)
-        self.readout = nn.GRUCell(self.dim, self.dim)
+        self.readout_layer = nn.GRUCell(self.dim, self.dim)
+
+        self.dropout = nn.Dropout(p=self.p_dropout)
 
     def forward(
         self,
@@ -98,6 +97,7 @@ class NodeLayer(nng.MessagePassing):
         readout = F.relu(self.readout_layer(contexts, nodes))
 
         self.expanded = expanded
+        self.joint_attributes = joint_attributes
         self.attentions = attentions
         self.node_embeddings = readout
         self.batch_index = atom_batch_index
@@ -170,10 +170,13 @@ class NodeLayer(nng.MessagePassing):
         # list of atom batch indices for softmax(alignment) so softmax is only completed across neighbours
         atom_batch_index = torch.concatenate([torch.tensor([i]*count) for i, count in enumerate(neighbour_counts)]).long().to(device)
         # list of atom_neighbours pairs for finding bond_attributes to concatenate to neighbour_attributes
-        atom_neighbour_pairs = torch.concat([
-            torch.tensor(list(batch_graph.in_edges(i)) + list(batch_graph.out_edges(i)))
-            for i in range(x.shape[0])
-        ], axis=0)
+
+        atom_neighbour_pairs = [
+            torch.tensor(list(batch_graph.out_edges(i)) + list(batch_graph.in_edges(i)))
+            for i in range(x.shape[0])]
+        
+        atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
+        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0)
         # expanded edge_attributes for batch processes 
         expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
         # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
@@ -220,11 +223,13 @@ class NodeLayer(nng.MessagePassing):
         # list of atom batch indices for softmax(alignment) so softmax is only completed across neighbours
         atom_batch_index = torch.concatenate([torch.tensor([i]*count) for i, count in enumerate(neighbour_counts)]).long().to(device)
         # list of atom_neighbours pairs for finding bond_attributes to concatenate to neighbour_attributes
-        atom_neighbour_pairs = torch.concat([
-            torch.tensor(list(batch_graph.in_edges(i)) + list(batch_graph.out_edges(i)))
-            for i in range(x.shape[0])
-        ], axis=0)
-        # expanded edge_attributes for batch processes 
+        atom_neighbour_pairs = [
+            torch.tensor(list(batch_graph.out_edges(i)) + list(batch_graph.in_edges(i)))
+            for i in range(x.shape[0])]
+        
+        atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
+        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0)
+
         expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
         # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
         # this is the most time consuming part of the process
@@ -233,7 +238,7 @@ class NodeLayer(nng.MessagePassing):
         neighbour_edge_attributes = expanded_edge_attr[edge_masks].to(device)
         
         return (
-            torch.concatenate([neighbour_attributes, neighbour_edge_attributes], axis=1),
+            torch.hstack([neighbour_attributes, neighbour_edge_attributes]),
             atom_batch_index,
             neighbour_counts
         )

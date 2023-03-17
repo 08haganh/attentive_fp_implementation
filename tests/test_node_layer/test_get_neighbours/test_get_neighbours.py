@@ -37,6 +37,7 @@ def test_get_neighbour_edge_attributes(case_data):
             case_data.edge_attr
     )
 
+    print(neighbour_edge_attributes, case_data.neighbour_edge_attributes)
     assert torch.all(neighbour_edge_attributes == case_data.neighbour_edge_attributes)
     assert torch.all(atom_batch_index == case_data.atom_batch_index)
     assert np.all(neighbour_counts == case_data.neighbour_counts)
