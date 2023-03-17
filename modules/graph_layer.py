@@ -58,6 +58,8 @@ class GraphLayer(nng.MessagePassing):
             )
         readout = F.relu(self.readout_layer(contexts, graph_nodes))
 
+        self.graph_nodes = graph_nodes
+        self.joint_attributes = joint_attributes
         self.attentions = attentions
         self.graph_embeddings = readout
         self.batch_index = batch_index

@@ -1,4 +1,5 @@
 import pytest
+from .case_data import CaseData
 
 import torch
 import numpy as np
@@ -50,5 +51,7 @@ def graph_embeddings(node_attributes):
          torch.sum(node_attributes[5:], axis=0)
         ], axis=0)
 
-
+@pytest.fixture
+def case_data():
+    return CaseData()
     
