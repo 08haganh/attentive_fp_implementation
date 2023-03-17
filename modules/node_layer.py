@@ -14,6 +14,8 @@ class NodeLayer(nng.MessagePassing):
 
     '''
     torch_geometric module which updates node embeddings as detailed in X
+
+    
     '''
     
     def __init__(
