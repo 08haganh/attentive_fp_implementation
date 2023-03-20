@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as nng
 
-from .node_layer import NodeLayer
-from .graph_layer import GraphLayer
+from ..modules.node_layer import NodeLayer
+from ..modules.graph_layer import GraphLayer
 
 class AttentiveFP(nng.MessagePassing):
 
