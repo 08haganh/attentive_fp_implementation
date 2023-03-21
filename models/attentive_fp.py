@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch_geometric.nn as nng
 
-from .node_layer import NodeLayer
-from .graph_layer import GraphLayer
+from ..modules.node_layer import NodeLayer
+from ..modules.graph_layer import GraphLayer
 
 class AttentiveFP(nng.MessagePassing):
 
@@ -29,16 +29,15 @@ class AttentiveFP(nng.MessagePassing):
 
         self.node_layers = nn.ModuleList([
             NodeLayer(
-                dim=embedding_dim, 
-                embed=True, 
-                node_attribute_dim=node_attribute_dim, 
-                edge_attribute_dim=edge_attribute_dim,
+                node_attribute_dim=self.node_attribute_dim, 
+                edge_attribute_dim=self.edge_attribute_dim,
+                embedding_dim=self.embedding_dim, 
                 p_dropout=p_dropout
                 )])
 
         self.node_layers.extend([
             NodeLayer(
-                dim=embedding_dim, 
+                node_attribute_dim=embedding_dim, 
                 p_dropout=p_dropout)
             for _ in range(n_node_layers-1)
          ])
