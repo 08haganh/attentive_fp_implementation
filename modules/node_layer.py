@@ -199,7 +199,7 @@ class NodeLayer(nng.MessagePassing):
             for i in range(x.shape[0])]
         
         atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
-        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0)
+        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0).to(device)
         # expanded edge_attributes for batch processes 
         expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
         # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
@@ -251,7 +251,7 @@ class NodeLayer(nng.MessagePassing):
             for i in range(x.shape[0])]
         
         atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
-        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0)
+        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0).to(device)
 
         expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
         # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
