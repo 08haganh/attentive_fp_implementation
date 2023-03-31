@@ -23,17 +23,100 @@ class NodeLayer(nng.MessagePassing):
             embedded to this dimension. If None, then node and neighbour features are used as passed
         p_dropout (float=0.2): dropout fraction 
 
+    Attributes:
+
+        node_attribute_dim (int)
+        edge_attribute_dim (Optional[int]=None)
+        embedding_dim (Optional[int]=None)
+        p_dropout (float=0.2)
+        embed (bool): if embedding_dim is not None, this is set to True, else False
+        dim (int): equals node_attribute_dim if embedding_dim is None else embedding_dim
+
+        (Layers)
+        node_embedding_layer (nn.Linear): if embedding_dim is not None, this linear layer is created.
+            input_dim = node_attribute_dim
+            output_dim = embedding_dim
+        neighbour_embedding_layer (nn.Linear): if embedding_dim is not None, this linear layer is created.
+            input_dim = node_attribute_dim (+ edge_attribute_dim if edge_attribute_dim is not None)
+            output_dim = embedding_dim
+        alignment_layer (nn.Linear): returns a learned edge weight between node and neighbours
+            input_dim = 2 * dim
+            output_dim = 1
+        context_layer (nn.Linear): learns an update message between a node and its neighbour
+            input_dim = 2 * dim
+            output_dim = dim
+        readout_layer (nn.GRUCell): learns how to update a node embedding with a message
+            input_dim = dim
+            hidden_layer_size = dim
+            output_dim = dim
+        dropout (nn.Dropout): dropout layer with fraction = p_dropout
+
+        (set during forward pass)
+        neighbours (torch.tensor): 
+            tensor containing ordered neighbours attributes neighbour_ij for i in nodes for j in node_neighbours
+            where i is ordered from 0 -> num_nodes and j from 0, ..., max(neighbour)
+            neighbour attributes have dimension of node_attribute_dim (+ edge_attribute_dim if edge_attr is not None)
+            set prior to embedding
+        atom_batch_index (torch.tensor.long()): 
+            tensor of len(neighbours) detailing to which node the neighbour is a neighbour to
+        neighbour_counts (torch.tensor):
+            tensor of len(nodes) detailing the neighbour count for that node
+        attentions (torch.tensor):
+            tensor of len(neighbours), containing the attention between the each node in neighbours
+            and the source node in atom_batch_index
+        node_embeddings (torch.tensor):
+            a tensor of len(nodes) containing the updated node embedding after a forward pass
+
     Methods:
 
-        forward: single forward pass through the layer. returns updated node embeddings
+        forward (x, edge_index, edge_attr):
 
-        get_neighbour_node_attributes: returns node neighbour attributes ordered by node index
-            [neighbour_i_j for i in nodes for j in node.neighbours.node_attributes]
+            nodes = x
+            neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_attributes(x, edge_index, edge_attr)
 
-        get_neighbour_edge_attributes: returns the edge_attributes for the nodes of the same dimension and order as 
-            get_neighbour_node_attributes
+            self.neighbours = neighbours
+            self.atom_batch_index = atom_batch_index
+            self.neighbour_counts = neighbour_counts
 
-        get_neighour_all_attributes: returns concat(get_neighbour_node_attributes, get_neighbour_edge_attributes)
+            if self.embed:
+                nodes = F.leaky_relu(self.atom_embedding_layer(nodes))
+                neighbours = F.leaky_relu(self.neighbour_embedding_layer(neighbours))
+            
+            expanded = torch.concat([nodes[i].expand(index, nodes.shape[1]) for i, index in enumerate(neighbour_counts)])
+
+            # get alignments and shizz
+            joint_attributes = torch.concat([expanded, neighbours], axis=1)
+            alignment = F.leaky_relu(self.alignment_layer(self.dropout(joint_attributes)))
+            attentions = softmax(alignment, atom_batch_index)
+            contexts = F.elu(
+                nng.global_add_pool(
+                    torch.mul(attentions, self.context_layer(self.dropout(neighbours))), 
+                    atom_batch_index
+                    )
+                )
+
+            readout = F.relu(self.readout_layer(contexts, nodes))
+
+            self.attentions = attentions
+            self.node_embeddings = readout
+
+            return readout
+
+        get_neighbour_attributes(x, edge_index, edge_attr):
+
+            og_order = edge_index # 2 by n_edges
+            reverse_order = torch.concat([edge_index[1, :], edge_index[0, :]], axis=0) # 2 by n_edges
+            all_node_pairs = torch.concat([og_order, reverse_order], axis=1) # 2 by 2 * n_edges
+            all_edge_attr = torch.concat([edge_attr, edge_attr]) # 2 by 2 * n_edges
+            all_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
+            all_attr = torch.concat([all_node_attr, all_edge_attr], axis=1) 
+            argsort = torch.argsort(all_node_pairs[0, :])
+            neighbour_attributes = all_attr[argsort]
+            atom_batch_index = all_node_pairs[0, :]
+            _, neighbour_counts = torch.unique(atom_batch_index, return_counts=True)
+
+            return neighbour_attributes, atom_batch_index, neighbour_counts
+
     '''
     
     def __init__(
