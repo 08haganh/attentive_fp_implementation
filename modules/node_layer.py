@@ -7,8 +7,6 @@ import torch.nn.functional as F
 import torch_geometric.nn as nng
 from torch_geometric.utils import softmax
 
-import networkx as nx
-
 class NodeLayer(nng.MessagePassing):
 
     '''
