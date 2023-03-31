@@ -6,11 +6,11 @@ from ....modules.node_layer import NodeLayer
         params=(
             [CaseData(
                 NodeLayer(100, 50, 200, 0.3),
-                100, 50, 200, 0.3, True
+                100, 50, 200, 0.3, True, 200
                 ),
             CaseData(
                 NodeLayer(64, 50, None, 0.5),
-                64, 50, None, 0.5, False
+                64, 50, None, 0.5, False, 64
                 )
             ]
             )

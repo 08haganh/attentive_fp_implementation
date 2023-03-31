@@ -6,18 +6,16 @@ class CaseData(object):
         x,
         edge_index,
         edge_attr,
-        neighbour_node_attributes,
-        neighbour_edge_attributes,
-        neighbour_all_attributes,
+        neighbour_attributes,
         atom_batch_index,
+        neighbour_indices,
         neighbour_counts
         ) -> None:
 
         self.x = x
         self.edge_index = edge_index
         self.edge_attr = edge_attr
-        self.neighbour_node_attributes = neighbour_node_attributes
-        self.neighbour_edge_attributes = neighbour_edge_attributes
-        self.neighbour_all_attributes = neighbour_all_attributes
+        self.neighbour_attributes = neighbour_attributes
         self.atom_batch_index = atom_batch_index
+        self.neighbour_indices = neighbour_indices
         self.neighbour_counts = neighbour_counts

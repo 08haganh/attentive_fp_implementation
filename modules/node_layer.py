@@ -5,8 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import torch_geometric.nn as nng
-from torch_geometric.utils import to_networkx, softmax
-from torch_geometric.data import Data
+from torch_geometric.utils import softmax
 
 import networkx as nx
 
@@ -59,6 +58,9 @@ class NodeLayer(nng.MessagePassing):
             set prior to embedding
         atom_batch_index (torch.tensor.long()): 
             tensor of len(neighbours) detailing to which node the neighbour is a neighbour to
+        neighbour_indices (torch.tensor):
+            tensor of len(neighbours) detailing the index of neigbour in neighbours
+            can be used with batch index to index attentions to node pair
         neighbour_counts (torch.tensor):
             tensor of len(nodes) detailing the neighbour count for that node
         attentions (torch.tensor):
@@ -72,10 +74,11 @@ class NodeLayer(nng.MessagePassing):
         forward (x, edge_index, edge_attr):
 
             nodes = x
-            neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_attributes(x, edge_index, edge_attr)
+            neighbours, atom_batch_index, neighbour_indices, neighbour_counts = self.get_neighbour_attributes(x, edge_index, edge_attr)
 
             self.neighbours = neighbours
             self.atom_batch_index = atom_batch_index
+            self.neighbour_indices = neighbour_indices
             self.neighbour_counts = neighbour_counts
 
             if self.embed:
@@ -104,9 +107,8 @@ class NodeLayer(nng.MessagePassing):
 
         get_neighbour_attributes(x, edge_index, edge_attr):
 
-            og_order = edge_index # 2 by n_edges
             reverse_order = torch.concat([edge_index[1, :], edge_index[0, :]], axis=0) # 2 by n_edges
-            all_node_pairs = torch.concat([og_order, reverse_order], axis=1) # 2 by 2 * n_edges
+            all_node_pairs = torch.concat([edge_index, reverse_order], axis=1) # 2 by 2 * n_edges
             all_edge_attr = torch.concat([edge_attr, edge_attr]) # 2 by 2 * n_edges
             all_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
             all_attr = torch.concat([all_node_attr, all_edge_attr], axis=1) 
@@ -160,12 +162,6 @@ class NodeLayer(nng.MessagePassing):
         ) -> torch.tensor:
 
         '''
-        forward pass through the node layer.
-
-        returns updated node embeddings for the graph
-
-        Also sets attentions, node_embeddings, and atom_batch_index attributes
-
         Args:
 
             x (torch.tensor): node feature matrix (n_nodes by n_node_features)
@@ -174,20 +170,18 @@ class NodeLayer(nng.MessagePassing):
             edge_attr (torch.tensor): edge feature matrix (n_bonds by n_bond_features)
         '''
 
-        # Perform Embedding
-        if self.embed:
-            nodes = F.leaky_relu(self.node_embedding_layer(x))
-            if self.edge_attribute_dim is None:
-                neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_node_attributes(x, edge_index)
-            else:
-                neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_all_attributes(x, edge_index, edge_attr)
-            neighbours = F.leaky_relu(self.neighbour_embedding_layer(neighbours))
-            
-        else:
-            nodes = x
-            neighbours, atom_batch_index, neighbour_counts = self.get_neighbour_node_attributes(x, edge_index)
+        nodes = x
+        neighbours, atom_batch_index, neighbour_indices, neighbour_counts = self.get_neighbour_attributes(x, edge_index, edge_attr)
 
-        # expand nodes to match neighbours.size()
+        self.neighbours = neighbours
+        self.atom_batch_index = atom_batch_index
+        self.neighbour_indices = neighbour_indices
+        self.neighbour_counts = neighbour_counts
+
+        if self.embed:
+            nodes = F.leaky_relu(self.node_embedding_layer(nodes))
+            neighbours = F.leaky_relu(self.neighbour_embedding_layer(neighbours))
+        
         expanded = torch.concat([nodes[i].expand(index, nodes.shape[1]) for i, index in enumerate(neighbour_counts)])
 
         # get alignments and shizz
@@ -200,151 +194,43 @@ class NodeLayer(nng.MessagePassing):
                 atom_batch_index
                 )
             )
+
         readout = F.relu(self.readout_layer(contexts, nodes))
 
-        self.expanded = expanded
-        self.joint_attributes = joint_attributes
         self.attentions = attentions
         self.node_embeddings = readout
-        self.batch_index = atom_batch_index
 
         return readout
-    
-    def get_neighbour_node_attributes(
-        self,
-        x,
-        edge_index
-        ) -> Tuple[torch.tensor, torch.tensor, List[int]]:
 
-        '''
-        retrieves the current embedding for atoms neighbours
-        '''
-
-        device = x.device
-
-        # graph of batch for easy access to node neighbours
-        batch_graph = to_networkx(
-            Data(edge_index=edge_index, num_nodes=len(x)),
-            to_undirected=False
-            )
-
-        # list of neighbour indices and neighbour counts
-        neighbour_indices = [sorted(list(nx.all_neighbors(batch_graph, i))) for i in range(x.shape[0])]
-        neighbour_counts = [len(item) for item in neighbour_indices]
-
-        # list of neighbour attributes of size (node * n_node_neighbours for node in nodes) by node_attribute_dim 
-        neighbour_node_attributes = torch.vstack([x[index] for index in neighbour_indices]).to(device)
-        # list of atom batch indices for softmax(alignment) so softmax is only completed across neighbours
-        atom_batch_index = torch.concatenate([torch.tensor([i]*count) for i, count in enumerate(neighbour_counts)]).long().to(device)
-
-        return (
-            neighbour_node_attributes,
-            atom_batch_index,
-            neighbour_counts
-        )
-    
-    def get_neighbour_edge_attributes(
+    def get_neighbour_attributes(
         self,
         x: torch.tensor,
         edge_index: torch.tensor,
-        edge_attr: Optional[torch.tensor]=None
-        ) -> Tuple[torch.tensor, torch.tensor, List[int]]:
+        edge_attr: Optional[torch.tensor]=None,
+        ) -> Tuple[torch.tensor, torch.tensor, torch.tensor, torch.tensor]:
 
         '''
-        embeds the neighbour descriptors (with edge_attr if not None)
+        Args:
 
-        returns: 
-            embedded neighbour tensor: tensor containing neighbour embeddings 
-            atom_batch_index: indices of the atoms to which the neighbour belongs
-            neighbour_counts: list of size #molecules where element i is the number of atoms in molecule i
+            x (torch.tensor): node feature matrix (n_nodes by n_node_features)
+            edge_index (toch.tensor): adjacency matrix in COO format (2 by n_bonds) where [0, i] are source nodes
+                                      and [1, i] are target nodes for the ith bond
+            edge_attr (torch.tensor): edge feature matrix (n_bonds by n_bond_features)
         '''
 
-        device = x.device
+        reverse_order = torch.vstack([edge_index[1, :], edge_index[0, :]]) # 2 by n_edges
+        all_node_pairs = torch.concat([edge_index, reverse_order], axis=1) # 2 by 2 * n_edges
+        neighbour_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
+        if edge_attr is not None:
+            neighbour_edge_attr = torch.concat([edge_attr, edge_attr]) # 2 by 2 * n_edges
+            neighbour_attributes = torch.concat([neighbour_node_attr, neighbour_edge_attr], axis=1) 
+        else:
+            neighbour_attributes = neighbour_node_attr
+        argsort = torch.argsort(all_node_pairs[0, :], stable=True)
+        neighbour_attributes = neighbour_attributes[argsort]
+        atom_batch_index = all_node_pairs[0, argsort]
+        _, neighbour_counts = torch.unique(atom_batch_index, return_counts=True)
+        neighbour_counts = neighbour_counts.long()
+        neighbour_indices = all_node_pairs[1, argsort]
 
-        # graph of batch for easy access to node neighbours
-        batch_graph = to_networkx(
-            Data(edge_index=edge_index, num_nodes=len(x)),
-            to_undirected=False
-            )
-        
-        # list of neighbour indices and neighbour counts
-        neighbour_indices = [sorted(list(nx.all_neighbors(batch_graph, i))) for i in range(x.shape[0])]
-        neighbour_counts = [len(item) for item in neighbour_indices]
-
-        # list of neighbour attributes of size (node * n_node_neighbours for node in nodes) by node_attribute_dim 
-        neighbour_attributes = torch.vstack([x[index] for index in neighbour_indices]).to(device)
-        # list of atom batch indices for softmax(alignment) so softmax is only completed across neighbours
-        atom_batch_index = torch.concatenate([torch.tensor([i]*count) for i, count in enumerate(neighbour_counts)]).long().to(device)
-        # list of atom_neighbours pairs for finding bond_attributes to concatenate to neighbour_attributes
-
-        atom_neighbour_pairs = [
-            torch.tensor(list(batch_graph.out_edges(i)) + list(batch_graph.in_edges(i)))
-            for i in range(x.shape[0])]
-        
-        atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
-        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0).to(device)
-        # expanded edge_attributes for batch processes 
-        expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
-        # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
-        # this is the most time consuming part of the process
-        edge_masks = torch.vstack([torch.all(edge_index == pair.reshape(-1, 2).T, axis=0) for pair in atom_neighbour_pairs])
-        # bond_attributes
-        neighbour_edge_attributes = expanded_edge_attr[edge_masks].to(device)
-
-        return (
-            neighbour_edge_attributes,
-            atom_batch_index,
-            neighbour_counts
-            ) 
-
-    def get_neighbour_all_attributes(self,
-        x: torch.tensor,
-        edge_index: torch.tensor,
-        edge_attr: Optional[torch.tensor]=None
-        ) -> Tuple[torch.tensor, torch.tensor, List[int]]:
-
-        '''
-        embeds the neighbour descriptors (with edge_attr if not None)
-
-        returns: 
-            embedded neighbour tensor: tensor containing neighbour embeddings 
-            atom_batch_index: indices of the atoms to which the neighbour belongs
-            neighbour_counts: list of size #molecules where element i is the number of atoms in molecule i
-        '''
-
-        device = x.device
-
-        # graph of batch for easy access to node neighbours
-        batch_graph = to_networkx(
-            Data(edge_index=edge_index, num_nodes=len(x)),
-            to_undirected=False
-            )
-        
-        # list of neighbour indices and neighbour counts
-        neighbour_indices = [sorted(list(nx.all_neighbors(batch_graph, i))) for i in range(x.shape[0])]
-        neighbour_counts = [len(item) for item in neighbour_indices]
-
-        # list of neighbour attributes of size (node * n_node_neighbours for node in nodes) by node_attribute_dim 
-        neighbour_attributes = torch.vstack([x[index] for index in neighbour_indices]).to(device)
-        # list of atom batch indices for softmax(alignment) so softmax is only completed across neighbours
-        atom_batch_index = torch.concatenate([torch.tensor([i]*count) for i, count in enumerate(neighbour_counts)]).long().to(device)
-        # list of atom_neighbours pairs for finding bond_attributes to concatenate to neighbour_attributes
-        atom_neighbour_pairs = [
-            torch.tensor(list(batch_graph.out_edges(i)) + list(batch_graph.in_edges(i)))
-            for i in range(x.shape[0])]
-        
-        atom_neighbour_pairs = [pairs[torch.argsort(pairs[pairs != i])] for i, pairs in enumerate(atom_neighbour_pairs)]
-        atom_neighbour_pairs = torch.concat(atom_neighbour_pairs, axis=0).to(device)
-
-        expanded_edge_attr = edge_attr.expand(neighbour_attributes.shape[0], edge_attr.shape[0], edge_attr.shape[1])
-        # bond masks to create bond_attribute tensor of size = neighbour_attributes.shape[0]
-        # this is the most time consuming part of the process
-        edge_masks = torch.vstack([torch.all(edge_index == pair.reshape(-1, 2).T, axis=0) for pair in atom_neighbour_pairs])
-        # bond_attributes
-        neighbour_edge_attributes = expanded_edge_attr[edge_masks].to(device)
-        
-        return (
-            torch.hstack([neighbour_attributes, neighbour_edge_attributes]),
-            atom_batch_index,
-            neighbour_counts
-        )
+        return neighbour_attributes, atom_batch_index, neighbour_indices, neighbour_counts

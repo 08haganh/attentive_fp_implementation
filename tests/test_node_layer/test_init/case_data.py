@@ -9,7 +9,8 @@ class CaseData(object):
         edge_attribute_dim,
         embedding_dim,
         p_dropout,
-        embed
+        embed,
+        dim
     ) -> None:
         
         self.node_layer = node_layer
@@ -18,3 +19,4 @@ class CaseData(object):
         self.embedding_dim = embedding_dim
         self.p_dropout = p_dropout
         self.embed = embed
+        self.dim = dim
