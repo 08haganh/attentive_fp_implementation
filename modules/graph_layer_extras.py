@@ -13,6 +13,8 @@ class GraphLayerExtras(nng.MessagePassing):
     torch_geometric module which updates a graph embeddings with node information + attention
     allows the user to pass graph level descriptors followed with a second x2_dim0 to incorporate 
     them into the neural network
+
+    
     '''
 
     def __init__(

@@ -29,7 +29,7 @@ class NodeLayer(nng.MessagePassing):
         embed (bool): if embedding_dim is not None, this is set to True, else False
         dim (int): equals node_attribute_dim if embedding_dim is None else embedding_dim
 
-        (Layers)
+        (layers)
         node_embedding_layer (nn.Linear): if embedding_dim is not None, this linear layer is created.
             input_dim = node_attribute_dim
             output_dim = embedding_dim
@@ -105,18 +105,22 @@ class NodeLayer(nng.MessagePassing):
 
         get_neighbour_attributes(x, edge_index, edge_attr):
 
-            reverse_order = torch.concat([edge_index[1, :], edge_index[0, :]], axis=0) # 2 by n_edges
+            reverse_order = torch.vstack([edge_index[1, :], edge_index[0, :]]) # 2 by n_edges
             all_node_pairs = torch.concat([edge_index, reverse_order], axis=1) # 2 by 2 * n_edges
-            all_edge_attr = torch.concat([edge_attr, edge_attr]) # 2 by 2 * n_edges
-            all_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
-            all_attr = torch.concat([all_node_attr, all_edge_attr], axis=1) 
-            argsort = torch.argsort(all_node_pairs[0, :])
-            neighbour_attributes = all_attr[argsort]
-            atom_batch_index = all_node_pairs[0, :]
+            neighbour_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
+            if edge_attr is not None:
+                neighbour_edge_attr = torch.concat([edge_attr, edge_attr]) # 2 by 2 * n_edges
+                neighbour_attributes = torch.concat([neighbour_node_attr, neighbour_edge_attr], axis=1) 
+            else:
+                neighbour_attributes = neighbour_node_attr
+            argsort = torch.argsort(all_node_pairs[0, :], stable=True)
+            neighbour_attributes = neighbour_attributes[argsort]
+            atom_batch_index = all_node_pairs[0, argsort]
             _, neighbour_counts = torch.unique(atom_batch_index, return_counts=True)
+            neighbour_counts = neighbour_counts.long()
+            neighbour_indices = all_node_pairs[1, argsort]
 
-            return neighbour_attributes, atom_batch_index, neighbour_counts
-
+            return neighbour_attributes, atom_batch_index, neighbour_indices, neighbour_counts
     '''
     
     def __init__(
