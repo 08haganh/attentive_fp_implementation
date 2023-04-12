@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch_geometric.nn as nng
 from torch_geometric.utils import softmax
 
-class NodeLayer(nng.MessagePassing):
+class AttentiveFPConvolution(nng.MessagePassing):
 
     '''
     torch_geometric module which updates node embeddings as detailed in X.
@@ -88,7 +88,7 @@ class NodeLayer(nng.MessagePassing):
         p_dropout: float=0
         ) -> None:
         
-        super(NodeLayer, self).__init__()
+        super(AttentiveFPConvolution, self).__init__()
 
         # args
         self.node_attribute_dim = node_attribute_dim

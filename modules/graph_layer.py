@@ -36,42 +36,12 @@ class GraphLayer(nng.MessagePassing):
         dropout (nn.Dropout): dropout layer with fraction = p_dropout
 
         (set during forward pass)
-
+        graph_nodes (torch.tensor): the embeddings for the graphs
+        attentions (torch.tensor): 
 
     Methods:
 
         forward(x, batch_index, graph_nodes)
-
-            if batch_index is None:
-            batch_index = torch.zeros(size=(x.shape[0]))
-
-            if graph_nodes is None:
-                graph_nodes = nng.global_add_pool(x, batch_index)
-            else:
-                graph_nodes = graph_nodes
-            
-            _, atom_counts = torch.unique(batch_index, return_counts=True)
-            expanded = torch.concat([graph_nodes[i].expand(ac, graph_nodes.shape[1]) for i, ac in enumerate(atom_counts)], axis=0)
-
-            joint_attributes = torch.concat([expanded, x], axis=1)
-            alignment = F.leaky_relu(self.alignment_layer(self.dropout(joint_attributes)))
-            attentions = softmax(alignment, batch_index)
-            contexts = F.elu(
-                nng.global_add_pool(
-                    torch.mul(attentions, self.context_layer(self.dropout(x))),
-                    batch_index
-                    )
-                )
-            readout = F.relu(self.readout_layer(contexts, graph_nodes))
-
-            self.graph_nodes = graph_nodes
-            self.joint_attributes = joint_attributes
-            self.attentions = attentions
-            self.graph_embeddings = readout
-            self.batch_index = batch_index
-            
-            return readout
-
     '''
 
     def __init__(
@@ -120,6 +90,7 @@ class GraphLayer(nng.MessagePassing):
         _, atom_counts = torch.unique(batch_index, return_counts=True)
         expanded = torch.concat([graph_nodes[i].expand(ac, graph_nodes.shape[1]) for i, ac in enumerate(atom_counts)], axis=0)
 
+        # compute graph convolutions
         joint_attributes = torch.concat([expanded, x], axis=1)
         alignment = F.leaky_relu(self.alignment_layer(self.dropout(joint_attributes)))
         attentions = softmax(alignment, batch_index)

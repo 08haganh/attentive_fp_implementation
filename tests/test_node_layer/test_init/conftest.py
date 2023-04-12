@@ -5,12 +5,30 @@ from ....modules.node_layer import NodeLayer
 @pytest.fixture(
         params=(
             [CaseData(
-                NodeLayer(100, 50, 200, 0.3),
-                100, 50, 200, 0.3, True, 200
+                node_layer=NodeLayer(
+                    node_attribute_dim=100, 
+                    edge_attribute_dim=50, 
+                    embedding_dim=200, 
+                    p_dropout=0.3),
+                node_attribute_dim=100, 
+                edge_attribute_dim=50, 
+                embedding_dim=200, 
+                p_dropout=0.3, 
+                embed=True, 
+                dim=200
                 ),
             CaseData(
-                NodeLayer(64, 50, None, 0.5),
-                64, 50, None, 0.5, False, 64
+                node_layer=NodeLayer(
+                    node_attribute_dim=64, 
+                    edge_attribute_dim=50, 
+                    embedding_dim=None, 
+                    p_dropout=0.5),
+                node_attribute_dim=64, 
+                edge_attribute_dim=50, 
+                embedding_dim=None, 
+                p_dropout=0.5, 
+                embed=False, 
+                dim=64
                 )
             ]
             )

@@ -1,4 +1,6 @@
-def test_init(case_data):
+from .case_data import CaseData
+
+def test_init(case_data: CaseData):
 
     assert case_data.node_layer.node_attribute_dim == case_data.node_attribute_dim
     assert case_data.node_layer.edge_attribute_dim == case_data.edge_attribute_dim
