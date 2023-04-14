@@ -1,4 +1,4 @@
-from ....modules import AFPSuperGraphConvolution
+from .....modules import AFPSuperGraphConvolution
 
 class CaseData:
 

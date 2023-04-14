@@ -1,6 +1,6 @@
 from typing import Union
 
-from ....modules import AFPGraphConvolution
+from .....modules import AFPGraphConvolution
 
 class CaseData:
 

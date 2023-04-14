@@ -132,7 +132,7 @@ class AFPConvolution(nn.Module):
         neighbour_attributes: torch.tensor, 
         neighbour_counts: List[int],
         batch_index: torch.tensor,
-        ) -> Tuple[torch.tensor]:
+        ) -> torch.tensor:
 
         '''
         updates node embeddings using an attention based graph convolution

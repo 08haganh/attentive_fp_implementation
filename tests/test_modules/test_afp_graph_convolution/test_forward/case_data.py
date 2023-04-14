@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from ....modules import AFPGraphConvolution
+from .....modules import AFPGraphConvolution
 import torch
 
 class CaseData:

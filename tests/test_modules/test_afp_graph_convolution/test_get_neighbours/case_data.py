@@ -1,5 +1,5 @@
 from typing import List
-from ....modules import AFPGraphConvolution
+from .....modules import AFPGraphConvolution
 import torch
 
 class CaseData:

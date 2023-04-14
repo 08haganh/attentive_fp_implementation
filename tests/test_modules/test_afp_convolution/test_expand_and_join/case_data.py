@@ -1,4 +1,4 @@
-from ....modules import AFPConvolution
+from .....modules import AFPConvolution
 import torch
 
 class CaseData:

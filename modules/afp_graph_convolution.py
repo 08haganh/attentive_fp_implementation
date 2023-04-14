@@ -160,8 +160,6 @@ class AFPGraphConvolution(AFPConvolution):
                 [node[i].num_neighbours for i in range(n_nodes)]
         '''
 
-        device = x.device
-
         reverse_order = torch.vstack([edge_index[1, :], edge_index[0, :]]) # 2 by n_edges
         all_node_pairs = torch.concat([edge_index, reverse_order], axis=1) # 2 by 2 * n_edges
         neighbour_node_attr = x[all_node_pairs[1, :]] # 2 * n_edges
@@ -171,11 +169,11 @@ class AFPGraphConvolution(AFPConvolution):
         else:
             neighbour_attributes = neighbour_node_attr
         argsort = torch.argsort(all_node_pairs[0, :], stable=True)
-        neighbour_attributes = neighbour_attributes[argsort].to(device)
-        batch_index = all_node_pairs[0, argsort].long().to(device)
+        neighbour_attributes = neighbour_attributes[argsort]
+        batch_index = all_node_pairs[0, argsort].long()
         _, neighbour_counts = torch.unique(batch_index, return_counts=True)
-        neighbour_counts = neighbour_counts.long().detach().numpy().tolist()
-        neighbour_index = all_node_pairs[1, argsort].long().to(device)
+        neighbour_counts = neighbour_counts.long().cpu().detach().numpy().tolist()
+        neighbour_index = all_node_pairs[1, argsort].long()
 
         return (
             neighbour_attributes,

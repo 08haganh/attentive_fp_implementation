@@ -1,6 +1,6 @@
 from typing import Union
 
-from ....modules import AFPSuperGraphConvolution
+from .....modules import AFPSuperGraphConvolution
 import torch
 
 class CaseData:

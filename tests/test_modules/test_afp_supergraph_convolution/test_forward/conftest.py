@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from .case_data import CaseData
-from ....modules import AFPSuperGraphConvolution
+from .....modules import AFPSuperGraphConvolution
 
 torch.manual_seed(0)
 

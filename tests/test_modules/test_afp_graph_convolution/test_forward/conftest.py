@@ -1,6 +1,6 @@
 import pytest
 from .case_data import CaseData
-from ....modules import AFPGraphConvolution
+from .....modules import AFPGraphConvolution
 
 import torch
 

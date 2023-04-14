@@ -122,7 +122,6 @@ class AFPSuperGraphConvolution(AFPConvolution):
         graph_indices, node_counts = torch.unique(batch_index, return_counts=True) 
         n_graph_descriptors = graph_x.shape[1] if graph_x is not None else 0
         node_counts += n_graph_descriptors
-        graph_indices = graph_indices.to(device)
         graph_indices = graph_indices.long().cpu().detach().numpy().tolist()
         neighbour_counts = node_counts.long().cpu().detach().numpy().tolist()
         
@@ -131,12 +130,12 @@ class AFPSuperGraphConvolution(AFPConvolution):
                 torch.concat([x[batch_index == ind], graph_x[ind]], axis=0)
                 for ind in graph_indices
                 ],
-                axis=0).to(device)
+                axis=0)
         else:
             neighbour_attributes = x
 
-        batch_index = torch.concat([torch.tensor([i]*node_counts[i]) for i in graph_indices], axis=0).to(device)
-        neighbour_index = torch.tensor([x for x in range(neighbour_attributes.shape[0])]).long().to(device)
+        batch_index = torch.concat([torch.tensor([i]*node_counts[i]) for i in graph_indices], axis=0).long()
+        neighbour_index = torch.tensor([x for x in range(neighbour_attributes.shape[0])]).long()
 
         return (
             neighbour_attributes, 
