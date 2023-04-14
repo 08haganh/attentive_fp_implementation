@@ -1,3 +1,3 @@
-from .node_layer import NodeLayer
-from .graph_layer import GraphLayer
-from .graph_layer_extras import GraphLayerExtras
+from .afp_convolution import AFPConvolution
+from .afp_graph_convolution import AFPGraphConvolution
+from .afp_supergraph_convolution import AFPSuperGraphConvolution
