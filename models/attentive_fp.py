@@ -195,7 +195,7 @@ class AttentiveFP(nng.MessagePassing):
             embedded_graph_x = torch.empty(size=[len(graph_x), self.n_graph_descriptors, self.embedding_dim], dtype=torch.float32)
             for j, mod in enumerate(self.graph_descriptor_embedding_layers):
                 graph_descs = torch.vstack([graph_x[i][j] for i in range(len(graph_x))])
-                embedded_graph_x[:, j, :] = mod(self.dropout(graph_descs))
+                embedded_graph_x[:, j, :] = mod(graph_descs)
         else:
             embedded_graph_x = None
         
