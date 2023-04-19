@@ -66,8 +66,6 @@ class AFPSuperGraphConvolution(AFPConvolution):
             graph_x
             )
         
-        print(neighbour_attributes)
-        
         readout = self._update_node_embedding(
             graph_embeddings, 
             neighbour_attributes, 
